@@ -1,0 +1,37 @@
+{
+  "name": "voicelogger",
+  "version": "1.0.1",
+  "description": "Just a bot that remembers users from Discord voice channels and outputs statistics. Made to order M1NTR#6350.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node dist/index"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lokilife/VoiceLogger.git"
+  },
+  "keywords": [
+    "Voice",
+    "logger",
+    "log",
+    "discord",
+    "bot"
+  ],
+  "author": "Lokilife#7962",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Lokilife/VoiceLogger/issues"
+  },
+  "homepage": "https://github.com/Lokilife/VoiceLogger#readme",
+  "dependencies": {
+    "@types/node": "^15.0.1",
+    "discord.js": "^12.5.3",
+    "dotenv": "^8.2.0",
+    "mongodb": "^3.6.6",
+    "mongoose": "^5.12.7"
+  },
+  "devDependencies": {
+    "@types/mongoose": "^5.10.5",
+    "typescript": "^4.2.4"
+  }
+}
