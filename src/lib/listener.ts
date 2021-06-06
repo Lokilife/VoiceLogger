@@ -1,5 +1,4 @@
-/// <reference path="typings.d.ts" />
-
+import { ClientEvents } from "discord.js"
 import Client from "./client"
 
 interface IListener {
@@ -18,7 +17,7 @@ export default abstract class Listener implements IListener {
      * A type of event
      * @type {EventTypes}
      */
-    public type: EventTypes
+    public type: keyof ClientEvents
     /**
      * Unique listener ID
      * @type {string}. 

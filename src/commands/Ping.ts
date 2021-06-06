@@ -7,7 +7,8 @@ export default class PingCommand extends Command {
     public help: IHelp = {
         name: "ping",
         description: "Задержки до API Discord'а",
-        usage: "ping"
+        usage: "ping",
+        category: "Разное"
     }
     
     async exec({ channel }) {

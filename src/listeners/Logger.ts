@@ -1,81 +1,42 @@
-import { VoiceState } from "discord.js"
-import { Listener, Utils } from "../lib"
-import VoiceLog from "../models/voice-log"
+import { ClientEvents, GuildMember, Snowflake, VoiceChannel } from "discord.js"
+import { Listener } from "../lib"
+import { UserJoin, UserLeave } from "../lib/utils"
 
-const voices: string[] = process.env.VOICES
-    .split(",")
-    .map(elem => elem.trim())
-    .filter(elem => !!elem)
+export default class ReadyListener2 extends Listener {
+    public type: keyof ClientEvents = "ready"
+    public id: string = "Logger"
 
-export default class VoiceStateListener extends Listener {
-    public type: EventTypes = "voiceStateUpdate"
-    public id: string = "voiceStateUpdate"
+    async exec() {
+        const guild = this.client.guilds.resolve(process.env.GUILD_ID)
+        var voices: VoiceChannel[] = process.env.VOICES
+            .split(",")
+            .map(e => guild.channels.resolve(e.trim()))
+            .filter(voice => voice && voice.type == "voice") as VoiceChannel[]
+        
+        if (!voices.length)
+            voices = guild.channels.cache.array().filter(channel => channel.type == "voice") as VoiceChannel[]
+        
+        var prevChannelsMembers: Map<Snowflake, GuildMember[]> = new Map()
 
-    async exec(oldState: VoiceState, newState: VoiceState) {
-        if (!this.client.logEnabled) return
+        setInterval(
+            async () => {
+                if (!this.client.logEnabled) return
+                for (const voice of voices) {
+                    const prevMembers = prevChannelsMembers.get(voice.id)
+                    if (prevMembers && !voice.members.array().length)
+                        for (const member of prevMembers)
+                            await UserLeave(member, voice, this.client.enabledMode)
 
-        if (voices.length && !voices.includes(newState.channelID || oldState.channelID)) return
+                    prevChannelsMembers.set(voice.id, voice.members.array())
 
-        // А тут уже разные условия для разных действий в войсах
-        if (newState.channel &&
-            !oldState.channel) { // Подключился к каналу
-            const channel = await Utils.AddChannel(newState.channel, this.client.logEnabledAt)
-
-            channel.users.push({
-                joinedAt: new Date(),
-                leavedAt: "",
-                id: newState.member.id
-            })
-            await VoiceLog.updateOne(
-                {
-                    channelID: newState.channelID,
-                    logDisabledAt: null
-                },
-                {
-                    $set: {
-                        users: channel.users
+                    for (const [,member] of voice.members) {
+                        const join = await UserJoin(member, voice, this.client.logEnabledAt, this.client.enabledMode)
+                        if (join && join.channelID != voice.id) return await UserLeave(member, voice, this.client.enabledMode)
+                        if (join && join.channelID == voice.id) return
                     }
-                })
-        }
-        if (!newState.channel &&
-            oldState.channel) { // Вышел из канала
-            
-            const channel = await Utils.AddChannel(oldState.channel, this.client.logEnabledAt)
-            
-            // UserLeaved возвращает не одного юзера, а сразу массив со всеми остальными юзерами которые были зафиксированы логером, но изменяется лишь только указанный
-            const users = Utils.UserLeaved(oldState.member, channel)
-            
-            await VoiceLog.updateOne({channelID: oldState.channelID, logDisabledAt: null}, {$set: {users: users}})
-        }
-        if (newState.channel &&
-            oldState.channel &&
-            newState.channel.id != oldState.channel.id) { // Пришёл из другого канала
-            // Второй раз одна и та же проверка, но теперь оба канала раздельно, чтобы опять же избежать некоторых проблем с БД
-            if (!voices.length || voices.includes(newState.channelID)) { // Если канал в который пришёл логируется
-                let channel = await VoiceLog.findOne({channelID: newState.channelID, logDisabledAt: null}).exec()
-
-                channel.users.push({
-                    logEnabledAt: this.client.logEnabledAt,
-                    logDisabledAt: "",
-                    joinedAt: new Date(),
-                    leavedAt: "",
-                    id: newState.member.id
-                })
-                await VoiceLog.updateOne(
-                    {
-                        channelID: newState.channelID
-                    },
-                    {
-                        $set: {
-                            users: channel.users
-                        }
-                    })
-            }
-            if (!voices.length || voices.includes(oldState.channelID)) { // Если канал из которого пришли логируется
-                const channel = await Utils.AddChannel(oldState.channel, this.client.logEnabledAt)
-                const users = Utils.UserLeaved(oldState.member, channel)
-                await VoiceLog.updateOne({channelID: oldState.channelID}, {$set: {users: users}})
-            }
-        } 
+                }
+            },
+            parseInt(process.env.VOICE_CHECK_INTERVAL)
+        )
     }
 }

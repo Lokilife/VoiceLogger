@@ -1,12 +1,11 @@
-/// <reference path="typings.d.ts" />
-
-import Listener     from './listener'
-import Client       from './client'
-import { join }     from 'path'
 import fs           from 'fs'
-import Command from './command'
+import { join }     from 'path'
+import Client       from './client'
+import Command      from './command'
+import Listener     from './listener'
+import UserModel    from '../models/user'
 import { GuildMember, Snowflake, User, VoiceChannel } from 'discord.js'
-import VoiceLog from '../models/voice-log'
+import strftime from 'strftime'
 
 /**
  * A function which add
@@ -51,8 +50,7 @@ export function loadCommands(client: Client, commandsDir: string) {
                 
                 const command = new commandClass(client)
 
-                for (const alias of command.aliases)
-                    client.commands.set(alias.toLowerCase(), command)
+                client.commands.push(command)
 
                 console.log(`+ ${file.name}`)
             } catch(e) {
@@ -62,38 +60,130 @@ export function loadCommands(client: Client, commandsDir: string) {
     }
 }
 
-export async function AddChannel(voiceChannel: VoiceChannel, enabledAt: Date) {
-    const channel = await VoiceLog.findOne({channelID: voiceChannel.id, logEnabledAt: enabledAt, logDisabledAt: null}).exec()
+export async function AddOrGetUser(user: User | GuildMember | Snowflake, mode: string) {
+    const id: Snowflake = (user instanceof User || user instanceof GuildMember) ? user.id : user
+    var userDoc = await UserModel.findOne({userID: id, logMode: mode}).exec()
 
-    // Простая проверка, чтобы в случае чего не мусорить в бд и не ломать работу логирования
-    if (channel) return channel
+    if (userDoc) return userDoc
 
-    return (await VoiceLog.insertMany({
-        channelID: voiceChannel.id,
-        logEnabledAt: enabledAt,
+    userDoc = new UserModel()
+    userDoc.userID = id
+    userDoc.note = "Заметка отсутствует"
+    userDoc.logMode = mode
+    userDoc.joins = []
+
+    return await userDoc.save()
+}
+
+export async function UserJoin(user: User | GuildMember | Snowflake, channel: VoiceChannel | Snowflake, logEnabledAt: Date, mode: string) {
+    const userID: Snowflake = user instanceof User || user instanceof GuildMember ? user.id : user
+    const channelID = channel instanceof VoiceChannel ? channel.id : channel
+    const userDoc = await AddOrGetUser(userID, mode)
+
+    const join = userDoc.joins.find(join => !join.logDisabledAt && !join.leavedAt)
+
+    if (join) return join
+
+    userDoc.joins.push({
+        channelID: channelID,
+        logEnabledAt: logEnabledAt,
         logDisabledAt: null,
-        users: []
-    }))[0]
+        joinedAt: new Date(),
+        leavedAt: null
+    })
+
+    await UserModel.updateOne({userID: userID}, {$set: {joins: userDoc.joins}}).exec()
+}
+
+export async function UserLeave(user: User | GuildMember | Snowflake, channel: VoiceChannel | Snowflake, mode: string) {
+    const userID: Snowflake = user instanceof User || user instanceof GuildMember ? user.id : user,
+          userDoc = await AddOrGetUser(userID, mode),
+          channelID = channel instanceof VoiceChannel ? channel.id : channel,
+          index = userDoc.joins.findIndex(join => !join.logDisabledAt && !join.leavedAt && join.channelID == channelID),
+          join = userDoc.joins[index]
+
+    if (!userDoc.joins.length || !join) return
+
+    userDoc.joins[index] = {
+        logEnabledAt: join.logEnabledAt,
+        logDisabledAt: null,
+        joinedAt: join.joinedAt,
+        leavedAt: new Date(),
+        channelID: join.channelID
+    }
+
+    await UserModel.updateOne({userID}, {$set: {joins: userDoc.joins}}).exec()
 }
 
 export async function DisableLog() {
-    await VoiceLog.updateMany({logDisabledAt: null}, {$set: {logDisabledAt: new Date()}}).exec()
+    const users = await UserModel.find().exec()
+    for (const user of users) {
+        for (const { channelID, logDisabledAt } of user.joins) {
+            if (logDisabledAt) continue
+            const index = user.joins.findIndex(join => join.channelID == channelID && !join.logDisabledAt)
+            const join = user.joins[index]
+            join.logDisabledAt = new Date()
+            join.leavedAt = join.leavedAt || new Date()
+            user.joins[index] = join
+        }
+        await UserModel.updateOne({userID: user.userID}, {$set: {joins: user.joins}})
+    }
 }
 
-export function UserLeaved(user: User | GuildMember | Snowflake, channel) {
-    const id = typeof user == "string" ? user : user.id
-    user = FindUser(id, channel.users)
-    // Если он каким-то мистическим образом зашёл в канал и не попал под логер (например бот был в оффе или сам логгер был отключен), то мы его пропускаем во избежание ошибок
-    if (!user) return []
-
-    const index = channel.users.indexOf(user)
-    channel.users[index].leavedAt = new Date()
-    return channel.users
+export function isDate(date): boolean {
+    return !isNaN(GetDate(date).valueOf())
 }
 
-export function FindUser(user: User | GuildMember | Snowflake, array: any[]) {
-    const id = typeof user == "string" ? user : user.id
-    for (const user of array) 
-        if (user.id == id && !user.leavedAt && !user.logDisabledAt)
-            return user
+export function GetDateWithoutTime(date: Date): string {
+    return strftime("%D", date)
+}
+
+export async function GetUsersForDateAndMode(date: Date, mode: string) {
+    const usersDocs = await UserModel.find().exec(),
+          finalUsers = []
+
+    for (const userDoc of usersDocs) {
+        if (!mode || userDoc.logMode != mode) continue
+        const finalJoins = []
+        for (const join of userDoc.joins)
+            if (GetDateWithoutTime(join.logEnabledAt) == GetDateWithoutTime(date)) finalJoins.push(join)
+
+        if (!finalJoins.length) continue
+
+        userDoc.joins = finalJoins
+        finalUsers.push(userDoc)
+    }
+
+    return finalUsers
+}
+
+export function GetTotalTime(joins): number {
+    var time = 0
+
+    for (const join of joins) {
+        if (!join.leavedAt) continue
+        time += join.leavedAt.valueOf() - join.joinedAt.valueOf()
+    }
+
+    return (time - time % 1000) / 1000
+}
+
+export function GetDate(date: string): Date {
+    const dateArr = date.split(/\./g).reverse()
+    if (dateArr.length == 3 && !dateArr[0].startsWith("20"))
+        dateArr[0] = "20" + dateArr[0]
+    return dateArr.length == 2 ? new Date(dateArr.join('.') + "." + new Date().getFullYear()) : new Date(dateArr.join('.'))
+}
+
+export function GetSortedUserJoins(userDoc) {
+    const map = new Map<string, any[]>()
+
+    for (const join of userDoc.joins) {
+        const prevJoins = map.get(strftime("%D", join.joinedAt)),
+              writeJoin = {joinedAt: join.joinedAt, leavedAt: join.leavedAt, channelID: join.channelID}
+        
+        map.set(strftime("%D", join.joinedAt), prevJoins ? [writeJoin, ...prevJoins] : [writeJoin])
+    }
+
+    return map
 }

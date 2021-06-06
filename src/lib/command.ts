@@ -11,6 +11,8 @@ export interface IHelp {
     name: string
     usage?: string
     description?: string
+    category?: string
+    hidden?: boolean
 }
 
 export default abstract class Command implements ICommand {
@@ -30,7 +32,7 @@ export default abstract class Command implements ICommand {
      * Whether or not this command is for owners only
      * @type {boolean}
      */
-    public ownerOnly: boolean = false
+    public loggerAccessOnly: boolean = false
     
     /**
      * A object which contain info for help command
