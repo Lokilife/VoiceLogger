@@ -1,9 +1,9 @@
-import { Message, MessageEmbed } from 'discord.js'
-import { Command } from '../lib'
-import { IHelp } from '../lib/command'
-import strftime from 'strftime'
 import { GetDate, GetTotalTime, GetUsersForDateAndMode, isDate, GetSortedUserJoins } from '../lib/utils'
+import { Message, MessageEmbed } from 'discord.js'
+import { IHelp } from '../lib/command'
 import User from '../models/user'
+import { Command } from '../lib'
+import strftime from 'strftime'
 
 const modes: string[] = process.env.LOGGER_MODES
     .split(',')

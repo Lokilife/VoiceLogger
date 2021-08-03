@@ -1,10 +1,10 @@
-import { ClientEvents } from "discord.js"
-import Client from "./client"
+import { ClientEvents } from 'discord.js'
+import Client from './client'
 
 interface IListener {
-    exec:       any
-    reload?:    any
-    remove?:    any
+    exec: any
+    reload?: any
+    remove?: any
 }
 
 export default abstract class Listener implements IListener {
@@ -20,12 +20,12 @@ export default abstract class Listener implements IListener {
     public type: keyof ClientEvents
     /**
      * Unique listener ID
-     * @type {string}. 
+     * @type {string}.
      */
     public id: string
 
-    constructor(client: Client) {
-        this.client = client
+    constructor (client: Client) {
+      this.client = client
     }
 
     abstract exec(...args)
