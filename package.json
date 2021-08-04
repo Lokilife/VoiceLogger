@@ -1,6 +1,6 @@
 {
   "name": "voicelogger",
-  "version": "1.0.2+",
+  "version": "1.0.2",
   "description": "Just a bot that remembers users from Discord voice channels and outputs statistics. Made to order M1NTR#6350.",
   "main": "src/index.js",
   "scripts": {
