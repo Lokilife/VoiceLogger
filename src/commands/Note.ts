@@ -21,7 +21,7 @@ export default class NoteCommand extends Command {
     public loggerAccessOnly: boolean = true
 
     async exec({ channel, mentions }: Message, [date, ...modeAndNoteArr]: string[]) {
-        var [mode, note] = modeAndNoteArr.join(' ').split('|')
+        let [mode, note] = modeAndNoteArr.join(' ').split('|')
 
         const member    = mentions.members.first()
               mode      = mode ? mode.trim() : "Неизвестно",

@@ -20,22 +20,30 @@ export default class StopCommand extends Command {
             return await message.channel.send("❌ Не пытайся меня обмануть, я знаю что ты не в войсе :)")
         
         if (!channel.permissionsFor(message.member).has("MUTE_MEMBERS"))
-            return await message.channel.send("❌ Ну не пытайся обмануть меня, я ведь прекрасно вижу что у тебя нет прав мьютить в этом канале :(")
+            return await message.channel.send("❌ Ну не пытайся обмануть меня, я ведь прекрасно вижу что у тебя нет прав мьютить в этом канале :)")
 
         if (!channel.permissionsFor(guild.me).has("MUTE_MEMBERS"))
-            return await message.channel.send("❌ Я бы хотел сказать что у тебя нет прав мьютить, но сейчас нет прав у меня(")
+            return await message.channel.send("❌ Я бы хотел сказать что у тебя нет прав мьютить, но сейчас нет прав у меня :(")
 
-        var mutes = [],
+        let mutes = [],
             exceptions = []
 
         for (const [id, member] of channel.members)
-            if (id == message.author.id) 
+            if (id == message.author.id)
                 exceptions.push(`${member.user.tag} (${member}) (Вызвал команду)`)
-            else if (this.exceptions.includes(id)) 
-                exceptions.push(`${member.user.tag} (${member}) (Список исключений)`)
             else if (member.voice.mute)
                 exceptions.push(`${member.user.tag} (${member}) (Уже замьючен)`)
             else {
+                let exception = false
+                for (const role of this.exceptions) {
+                    if (member.roles.cache.get(role)) {
+                        exceptions.push(`${member.user.tag} (${member}) (Исключение)`)
+                        exception = true
+                        break
+                    }
+                }
+                if (exception) continue
+
                 member.edit({mute: true})
                 mutes.push(`${member.user.tag} (${member})`)
             }

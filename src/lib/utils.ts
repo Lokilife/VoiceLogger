@@ -47,7 +47,7 @@ export function loadCommands(client: Client, commandsDir: string) {
                 
         if (!Command.isPrototypeOf(commandClass)) // Проверяем наследует ли полученный нами класс класс события.
           return
-                
+        
         const command = new commandClass(client)
 
         client.commands.push(command)

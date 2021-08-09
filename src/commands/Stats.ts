@@ -4,6 +4,7 @@ import { IHelp } from '../lib/command'
 import User from '../models/user'
 import { Command } from '../lib'
 import strftime from 'strftime'
+const strftimeTimeZone = strftime.timezone('Europe/Moscow')
 
 const modes: string[] = process.env.LOGGER_MODES
     .split(',')
@@ -30,11 +31,11 @@ export default class StatsCommand extends Command {
             const date = GetDate(selectedDateOrUser),
                   users = await GetUsersForDateAndMode(date, selectedMode),
                   page = selectedPage,
-                //   maxPages = users.length <= 10 ? (users.length - users.length % 10) / 10 + 1 : (users.length - users.length % 10) / 10,
-                  maxPages = users.length,
+                  maxPages = users.length <= 10 ? (users.length - users.length % 10) / 10 + 1 : (users.length - users.length % 10) / 10,
+                //   maxPages = users.length,
                   fields = [],
                   embed = new MessageEmbed({
-                      title: `Статистика посещения ${strftime("%d.%m.%y", date)}`,
+                      title: `Статистика посещения ${strftimeTimeZone("%d.%m.%y", date)}`,
                       color: 0x2f3136,
                       footer: {
                           text: `Page ${page}/${maxPages}`
@@ -52,12 +53,12 @@ export default class StatsCommand extends Command {
                 
                 fields.push({
                     name: `${member.user.tag}  ⌚ ${hours < 10 ? "0": ""}${hours}:${minutes < 10 ? "0": ""}${Math.floor(minutes)}`,
-                    value: user.joins.map((join, index) => `Join **#${index+1}** ${strftime("%R", join.joinedAt)}${join.leavedAt ? `\nLeft **#${index+1}** ${strftime("%R", join.leavedAt)}` : ""}`)
+                    value: user.joins.map((join, index) => `Join **#${index+1}** ${strftimeTimeZone("%R", join.joinedAt)}${join.leavedAt ? `\nLeft **#${index+1}** ${strftimeTimeZone("%R", join.leavedAt)}` : ""}`)
                 })
             }
         
-            // embed.addFields(fields.slice((page-1) * 10, page * 10))
-            embed.addFields(fields.slice((page-1), page))
+            embed.addFields(fields.slice((page-1) * 10, page * 10))
+            // embed.addFields(fields.slice((page-1), page))
 
             if (!fields.length) {
                 embed.setDescription("За эту сессию пользователей не зафиксировано")
@@ -118,9 +119,9 @@ export default class StatsCommand extends Command {
                           minutes = Math.floor(totalTime / 60 % 60)
                         
                     return {
-                        name: `${strftime("%d.%m.%y", new Date(date))}  ⌚ ${hours < 10 ? "0": ""}${hours}:${minutes < 10 ? "0": ""}${Math.floor(minutes)}`,
+                        name: `${strftimeTimeZone("%d.%m.%y", new Date(date))}  ⌚ ${hours < 10 ? "0": ""}${hours}:${minutes < 10 ? "0": ""}${Math.floor(minutes)}`,
                         value: joins.map(
-                            (join, index) => `**#${index+1}** ${strftime("%R", join.joinedAt)}${join.leavedAt ? ` - ${strftime("%R", join.leavedAt)}` : ""}`)
+                            (join, index) => `**#${index+1}** ${strftimeTimeZone("%R", join.joinedAt)}${join.leavedAt ? ` - ${strftimeTimeZone("%R", join.leavedAt)}` : ""}`)
                     }
                 }))
         
